@@ -8,6 +8,8 @@ import 'cart_page.dart';
 import 'account_page.dart';
 import 'admin_dashboard.dart';
 import 'admin_page.dart';
+import '../fx.dart';
+import 'package:flutter/services.dart'; 
 
 class _D {
   final Widget icon, sel;
@@ -63,12 +65,20 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  Future<void> _onBack() async {
+    final tab = isAdmin ? HomeShell.adminTab : HomeShell.tab;
+    if (tab.value != 0) { tab.value = 0; return; }   // back dari tab lain -> ke Beranda dulu
+    if (await confirmExit(context)) SystemNavigator.pop();
+  }
+
   Widget _cartIcon(bool selected) => ListenableBuilder(
         listenable: cart,
-        builder: (_, __) => Badge(
-          isLabelVisible: cart.count > 0,
-          label: Text('${cart.count}'),
-          child: Icon(selected ? Icons.shopping_basket : Icons.shopping_basket_outlined, color: selected ? brand : null),
+        builder: (_, __) => CartTarget(
+          child: Badge(
+            isLabelVisible: cart.count > 0,
+            label: Text('${cart.count}'),
+            child: Icon(selected ? Icons.shopping_basket : Icons.shopping_basket_outlined, color: selected ? brand : null),
+          ),
         ),
       );
 
@@ -122,14 +132,10 @@ class _HomeShellState extends State<HomeShell> {
     }
     return Scaffold(
       body: Column(children: [header, Expanded(child: content)]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: i,
-        onDestinationSelected: on,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        indicatorColor: const Color(0x1AE53935),
-        labelBehavior: d.length > 4 ? NavigationDestinationLabelBehavior.onlyShowSelected : NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: [for (final x in d) NavigationDestination(icon: x.icon, selectedIcon: x.sel, label: x.label)],
+      bottomNavigationBar: FxBottomNav(
+        index: i,
+        onTap: on,
+        items: [for (final x in d) FxNavItem(x.icon, x.sel, x.label)],
       ),
     );
   }
@@ -137,18 +143,24 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     if (!checked) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    return LayoutBuilder(builder: (_, c) {
-      final wide = c.maxWidth >= 800;
-      if (isAdmin) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: LayoutBuilder(builder: (_, c) {
+        final wide = c.maxWidth >= 800;
+        if (isAdmin) {
+          return ValueListenableBuilder<int>(
+            valueListenable: HomeShell.adminTab,
+            builder: (_, i, __) => _frame(wide, i, (v) => HomeShell.adminTab.value = v, _adminDest, _adminBody(i)),
+          );
+        }
         return ValueListenableBuilder<int>(
-          valueListenable: HomeShell.adminTab,
-          builder: (_, i, __) => _frame(wide, i, (v) => HomeShell.adminTab.value = v, _adminDest, _adminBody(i)),
+          valueListenable: HomeShell.tab,
+          builder: (_, i, __) => _frame(wide, i, (v) => HomeShell.tab.value = v, _custDest, IndexedStack(index: i, children: _pages)),
         );
-      }
-      return ValueListenableBuilder<int>(
-        valueListenable: HomeShell.tab,
-        builder: (_, i, __) => _frame(wide, i, (v) => HomeShell.tab.value = v, _custDest, IndexedStack(index: i, children: _pages)),
-      );
-    });
+      }),
+    );
   }
 }

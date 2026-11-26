@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // GANTI dengan punya lu (Supabase > Project Settings > API Keys). Pakai publishable/anon key, BUKAN secret/service_role.
-const supabaseUrl = 'https://kjklvkahyombnarcjhuk.supabase.co/';
+const supabaseUrl = 'https://kjklvkahyombnarcjhuk.supabase.co';
 const supabaseAnonKey = 'sb_publishable_6m1Jm7ZegYeFHBe5YByohg_lKn9syPI';
 
 final sb = Supabase.instance.client;
@@ -161,6 +161,10 @@ class CartItem {
 
 class Cart extends ChangeNotifier {
   final items = <String, CartItem>{};
+  RealtimeChannel? _ch;
+  String? _uid;
+  Timer? _deb;
+  DateTime _lastWrite = DateTime(2000);
 
   /// Langkah tombol +/-: 1000 untuk order besar, 1 untuk order kecil.
   static int stepOf(Variant v) => v.minOrder >= 1000 ? 1000 : 1;
@@ -172,30 +176,142 @@ class Cart extends ChangeNotifier {
     return n;
   }
 
+  // ---------- muat dari database ----------
+  Future<void> load() async {
+    final u = sb.auth.currentUser;
+    if (u == null) {
+      _stop();
+      items.clear();
+      notifyListeners();
+      return;
+    }
+    if (u.id == _uid && _ch != null) return; // akun sama & sudah mendengarkan
+    _uid = u.id;
+    await _pull();
+    _listen(u.id);
+  }
+
+  Future<void> _pull() async {
+    final u = sb.auth.currentUser;
+    if (u == null) return;
+    try {
+      final rows = await sb.from('cart_items').select('product_id,variant_id,qty').eq('user_id', u.id) as List;
+      final fresh = <String, CartItem>{};
+      if (rows.isNotEmpty) {
+        final ids = {for (final e in rows) '${e['product_id']}'}.toList();
+        final res = await sb.from('products').select(_productSelect).inFilter('id', ids).eq('is_active', true) as List;
+        final prods = {for (final e in res) '${e['id']}': Product.fromMap(e as Map)};
+        for (final e in rows) {
+          final pr = prods['${e['product_id']}'];
+          if (pr == null) continue; // produk sudah dihapus / nonaktif
+          final v = pr.variants.firstWhere((x) => x.id == '${e['variant_id']}', orElse: () => pr.variants.first);
+          final it = CartItem(pr, v, 0);
+          it.qty = _clamp(it, (e['qty'] as num).toInt());
+          fresh[it.key] = it;
+        }
+      }
+      items
+        ..clear()
+        ..addAll(fresh);
+    } catch (e) {
+      debugPrint('CART ERROR: $e');
+    }
+    notifyListeners();
+  }
+
+  void _listen(String uid) {
+    _stop();
+    _uid = uid;
+    _ch = sb
+        .channel('cart-$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'cart_items',
+          filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'user_id', value: uid),
+          callback: (_) {
+            // abaikan "gema" dari perubahan yang baru kita tulis sendiri
+            if (DateTime.now().difference(_lastWrite) < const Duration(milliseconds: 1500)) return;
+            _deb?.cancel();
+            _deb = Timer(const Duration(milliseconds: 400), _pull);
+          },
+        )
+        .subscribe();
+  }
+
+  void _stop() {
+    final c = _ch;
+    if (c != null) sb.removeChannel(c);
+    _ch = null;
+    _uid = null;
+  }
+
+  // ---------- tulis ke database (UI sudah berubah duluan) ----------
+  Future<void> _upsert(CartItem i) async {
+    final u = sb.auth.currentUser;
+    if (u == null) return;
+    _lastWrite = DateTime.now();
+    try {
+      await sb.from('cart_items').upsert(
+        {'user_id': u.id, 'product_id': i.p.id, 'variant_id': i.v.id, 'qty': i.qty, 'updated_at': DateTime.now().toUtc().toIso8601String()},
+        onConflict: 'user_id,product_id,variant_id',
+      );
+    } catch (e) {
+      debugPrint('CART ERROR: $e');
+    }
+  }
+
+  Future<void> _del(String productId, String variantId) async {
+    final u = sb.auth.currentUser;
+    if (u == null) return;
+    _lastWrite = DateTime.now();
+    try {
+      await sb.from('cart_items').delete().eq('user_id', u.id).eq('product_id', productId).eq('variant_id', variantId);
+    } catch (e) {
+      debugPrint('CART ERROR: $e');
+    }
+  }
+
+  Future<void> _delAll() async {
+    final u = sb.auth.currentUser;
+    if (u == null) return;
+    _lastWrite = DateTime.now();
+    try {
+      await sb.from('cart_items').delete().eq('user_id', u.id);
+    } catch (e) {
+      debugPrint('CART ERROR: $e');
+    }
+  }
+
+  // ---------- operasi keranjang ----------
   void add(Product p, Variant v, [int? qty]) {
     final k = '${p.id}|${v.id}';
     final it = items[k] ?? CartItem(p, v, 0);
     it.qty = _clamp(it, it.qty + (qty ?? v.minOrder));
     items[k] = it;
     notifyListeners();
+    _upsert(it);
   }
 
   void setQty(CartItem i, int q) {
     i.qty = _clamp(i, q);
     notifyListeners();
+    _upsert(i);
   }
 
   void inc(CartItem i) => setQty(i, i.qty + stepOf(i.v));
   void dec(CartItem i) => setQty(i, i.qty - stepOf(i.v));
 
   void remove(String key) {
-    items.remove(key);
+    final it = items.remove(key);
     notifyListeners();
+    if (it != null) _del(it.p.id, it.v.id);
   }
 
   void clear() {
     items.clear();
     notifyListeners();
+    _delAll();
   }
 
   /// Jumlah baris di keranjang (untuk badge)
@@ -215,6 +331,7 @@ class Favs extends ChangeNotifier {
   bool has(String id) => ids.contains(id);
 
   Future<void> load() async {
+    debugPrint('CART load, user=${sb.auth.currentUser?.id}');
     if (sb.auth.currentUser == null) {
       ids = {};
       notifyListeners();

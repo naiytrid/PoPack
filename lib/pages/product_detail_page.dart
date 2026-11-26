@@ -5,6 +5,7 @@ import '../core.dart';
 import '../widgets.dart';
 import 'auth_page.dart';
 import 'home_shell.dart';
+import '../fx.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Product p;
@@ -17,6 +18,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   int vi = 0, page = 0, qty = 0;
   final pc = PageController();
   final qc = TextEditingController();
+  final imgKey = GlobalKey();   
 
   Product get p => widget.p;
   Variant get v => p.variants[vi];
@@ -56,6 +58,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       Navigator.popUntil(context, (r) => r.isFirst);
       HomeShell.tab.value = 2;
     } else {
+      flyToCart(imgKey.currentContext ?? context, imageUrl: p.image);
       toast(context, '${nf(qty)} pcs ditambahkan ke keranjang');
     }
   }
@@ -82,6 +85,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   Widget _image() {
     final imgs = p.images;
     return AspectRatio(
+      key: imgKey,
       aspectRatio: 1,
       child: Container(
         clipBehavior: Clip.antiAlias,

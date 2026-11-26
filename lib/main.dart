@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core.dart';
 import 'pages/home_shell.dart';
+import 'fx.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,9 +10,11 @@ Future<void> main() async {
   sync.start();
   favs.load();
   notifs.load();
+  cart.load();
   sb.auth.onAuthStateChange.listen((_) {
     favs.load();
     notifs.load();
+    cart.load();
   });
   runApp(const PoPackApp());
 }
@@ -26,6 +29,8 @@ class PoPackApp extends StatelessWidget {
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: brand),
           scaffoldBackgroundColor: bg,
+          splashFactory: InkSparkle.splashFactory,        
+          pageTransitionsTheme: fxPageTransitionsTheme,   
           appBarTheme: const AppBarTheme(
             backgroundColor: bg,
             surfaceTintColor: Colors.transparent,

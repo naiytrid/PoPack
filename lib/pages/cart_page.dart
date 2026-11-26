@@ -84,13 +84,22 @@ class _CartPageState extends State<CartPage> {
         ]),
       );
 
-  Widget _stepper(CartItem i) => Container(
+    Widget _stepper(CartItem i) => Container(
         decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20), border: Border.all(color: line)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           IconButton(visualDensity: VisualDensity.compact, iconSize: 18, icon: const Icon(Icons.remove), onPressed: i.qty > i.v.minOrder ? () => cart.dec(i) : null),
           InkWell(
             onTap: () => _editQty(i),
-            child: SizedBox(width: 58, child: Center(child: Text(nf(i.qty), style: const TextStyle(fontWeight: FontWeight.w800)))),
+            child: SizedBox(
+              width: 58,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  transitionBuilder: (c, a) => ScaleTransition(scale: a, child: FadeTransition(opacity: a, child: c)),
+                  child: Text(nf(i.qty), key: ValueKey(i.qty), style: const TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ),
           ),
           IconButton(visualDensity: VisualDensity.compact, iconSize: 18, icon: const Icon(Icons.add), onPressed: () => cart.inc(i)),
         ]),

@@ -4,6 +4,7 @@ import 'pages/auth_page.dart';
 import 'pages/home_shell.dart';
 import 'pages/product_detail_page.dart';
 import 'pages/notifications_page.dart';
+import 'fx.dart';
 
 // Lebar maksimum konten di layar lebar (laptop)
 const kMaxW = 1200.0;
@@ -89,10 +90,12 @@ class AppHeader extends StatelessWidget {
                         Navigator.of(context).popUntil((r) => r.isFirst);
                         HomeShell.tab.value = 2;
                       },
-                      icon: Badge(
-                        isLabelVisible: cart.count > 0,
-                        label: Text('${cart.count}'),
-                        child: const Icon(Icons.shopping_basket_outlined, color: ink),
+                      icon: CartTarget(                               
+                        child: Badge(
+                          isLabelVisible: cart.count > 0,
+                          label: Text('${cart.count}'),
+                          child: const Icon(Icons.shopping_basket_outlined, color: ink),
+                        ),
                       ),
                     ),
                   ),
@@ -176,18 +179,27 @@ class FavButton extends StatelessWidget {
         listenable: favs,
         builder: (_, __) {
           final on = favs.has(p.id);
-          return Material(
-            color: Colors.white.withAlpha(235),
-            shape: const CircleBorder(side: BorderSide(color: line)),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () async {
-                if (!await requireLogin(context)) return;
-                favs.toggle(p.id);
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Icon(on ? Icons.favorite : Icons.favorite_border, size: size, color: on ? brand : muted),
+          return PressScale(
+            scale: 0.85,
+            child: Material(
+              color: Colors.white.withAlpha(235),
+              shape: const CircleBorder(side: BorderSide(color: line)),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () async {
+                  if (!await requireLogin(context)) return;
+                  favs.toggle(p.id);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    transitionBuilder: (c, a) => ScaleTransition(
+                        scale: CurvedAnimation(parent: a, curve: Curves.elasticOut), child: c),
+                    child: Icon(on ? Icons.favorite : Icons.favorite_border,
+                        key: ValueKey(on), size: size, color: on ? brand : muted),
+                  ),
+                ),
               ),
             ),
           );
@@ -203,7 +215,7 @@ class SliverProducts extends StatelessWidget {
   Widget build(BuildContext context) => SliverLayoutBuilder(
         builder: (_, k) => SliverGrid(
           gridDelegate: productGridDelegate(k.crossAxisExtent),
-          delegate: SliverChildBuilderDelegate((_, i) => ProductCard(list[i]), childCount: list.length),
+          delegate: SliverChildBuilderDelegate((_, i) => FadeSlideIn(index: i, child: ProductCard(list[i])), childCount: list.length),
         ),
       );
 }
@@ -222,77 +234,86 @@ class ProductCard extends StatelessWidget {
     if (!await requireLogin(c)) return;
     final v = p.variants.first;
     cart.add(p, v);
-    if (c.mounted) toast(c, '${nf(v.minOrder)} pcs ditambahkan ke keranjang');
+    if (!c.mounted) return;
+    flyToCart(c, imageUrl: p.image); // bola terbang ke keranjang
+    toast(c, '${nf(v.minOrder)} pcs ditambahkan ke keranjang');
   }
 
   @override
   Widget build(BuildContext context) {
     final low = p.ready && p.stock != null && p.stock! <= 10;
-    return Material(
-      color: Colors.white,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: line)),
-      child: InkWell(
-        onTap: () => _open(context),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          AspectRatio(
-            aspectRatio: 1,
-            child: Stack(fit: StackFit.expand, children: [
-              (p.image == null || p.image!.isEmpty)
-                  ? _ph(Icons.inventory_2_outlined)
-                  : Image.network(p.image!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _ph(Icons.broken_image_outlined)),
-              if (low)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(20)),
-                    child: Text('Sisa ${p.stock}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              if (!p.ready)
-                Container(
-                  color: const Color(0x80000000),
-                  alignment: Alignment.center,
-                  child: const Text('Stok Habis', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                ),
-              Positioned(top: 6, right: 6, child: FavButton(p, size: 17)),
-            ]),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(
-                  height: 36,
-                  child: Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.35, color: ink)),
-                ),
-                const Spacer(),
-                Row(children: [
-                  Expanded(
-                    child: Text(rp(p.price),
-                        maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: brand, fontWeight: FontWeight.w800, fontSize: 14.5)),
-                  ),
-                  if (p.ready)
-                    SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: Material(
-                        color: brand,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: () => _quickAdd(context),
-                          child: const Icon(Icons.add, size: 18, color: Colors.white),
-                        ),
-                      ),
+    return PressScale( // <-- dibungkus PressScale
+      child: Material(
+        color: Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: line)),
+        child: InkWell(
+          onTap: () => _open(context),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: Stack(fit: StackFit.expand, children: [
+                (p.image == null || p.image!.isEmpty)
+                    ? _ph(Icons.inventory_2_outlined)
+                    : Image.network(p.image!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _ph(Icons.broken_image_outlined)),
+                if (low)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(20)),
+                      child: Text('Sisa ${p.stock}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
                     ),
-                ]),
+                  ),
+                if (!p.ready)
+                  Container(
+                    color: const Color(0x80000000),
+                    alignment: Alignment.center,
+                    child: const Text('Stok Habis', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                Positioned(top: 6, right: 6, child: FavButton(p, size: 17)),
               ]),
             ),
-          ),
-        ]),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SizedBox(
+                    height: 36,
+                    child: Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.35, color: ink)),
+                  ),
+                  const Spacer(),
+                  Row(children: [
+                    Expanded(
+                      child: Text(rp(p.price),
+                          maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: brand, fontWeight: FontWeight.w800, fontSize: 14.5)),
+                    ),
+                    if (p.ready)
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Builder( // <-- Builder supaya dapat context tombol "+"
+                          builder: (bc) => PressScale(
+                            scale: 0.8,
+                            child: Material(
+                              color: brand,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () => _quickAdd(bc), // <-- pakai bc, bukan context
+                                child: const Icon(Icons.add, size: 18, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ]),
+                ]),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
