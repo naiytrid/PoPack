@@ -407,6 +407,11 @@ Future<List<Product>> fetchProducts() async {
   return (r as List).map<Product>((e) => Product.fromMap(e)).toList();
 }
 
+Future<Product?> fetchProduct(String id) async {
+  final r = await sb.from('products').select(_productSelect).eq('id', id).maybeSingle();
+  return r == null ? null : Product.fromMap(r);
+}
+
 /// Untuk halaman admin (semua produk, termasuk nonaktif)
 Future<List> fetchAdminProducts() async =>
     await sb.from('products').select(_productSelect).order('created_at', ascending: false);

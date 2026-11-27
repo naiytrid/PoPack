@@ -4,6 +4,7 @@ import '../core.dart';
 import '../widgets.dart';
 import 'product_form.dart';
 import 'add_stock_dialog.dart';
+import '../fx.dart';
 
 class AdminPage extends StatefulWidget {
   final String section; // orders | products | users | report
@@ -149,18 +150,39 @@ class _AdminPageState extends State<AdminPage> {
 
   // ================= PESANAN =================
   List<Widget> _acts(Map o) {
-    Widget b(String t, String s, [Color? c]) => TextButton(
-        onPressed: () => _run(() async => await sb.rpc('admin_set_order_status', params: {'oid': o['id'], 'new_status': s})),
-        child: Text(t, style: TextStyle(color: c, fontWeight: FontWeight.w700)));
+    final code = '${o['id']}'.substring(0, 8).toUpperCase();
+    Widget b(String t, String s, {required String ask, String? msg, Color? c, bool danger = false}) => TextButton(
+          onPressed: () async {
+            final ok = await confirmAction(
+              context,
+              title: ask,
+              message: 'Pesanan #$code${msg == null ? '' : '\n$msg'}',
+              confirmText: t,
+              danger: danger,
+            );
+            if (!ok || !mounted) return;
+            await _run(() async => await sb.rpc('admin_set_order_status', params: {'oid': o['id'], 'new_status': s}));
+          },
+          child: Text(t, style: TextStyle(color: danger ? Colors.red : c, fontWeight: FontWeight.w700)),
+        );
     switch (o['status']) {
       case 'pending':
-        return [b('Tolak', 'rejected', Colors.red), b('Setujui', 'approved', Colors.green)];
+        return [
+          b('Tolak', 'rejected', ask: 'Yakin tolak pesanan?', msg: 'Stok akan dikembalikan.', danger: true),
+          b('Setujui', 'approved', ask: 'Yakin setujui pesanan?', msg: 'Status menjadi Dipesan.', c: Colors.green),
+        ];
       case 'cancel_requested':
-        return [b('Tolak Batal', 'reject_cancel'), b('Setujui Batal', 'cancelled', Colors.red)];
+        return [
+          b('Tolak Batal', 'reject_cancel', ask: 'Yakin tolak pengajuan batal?', msg: 'Pesanan tetap berjalan dan pembeli diberi tahu.'),
+          b('Setujui Batal', 'cancelled', ask: 'Yakin setujui pembatalan?', msg: 'Pesanan dibatalkan dan stok dikembalikan.', danger: true),
+        ];
       case 'approved':
-        return [b('Batalkan', 'cancelled', Colors.red), b('Proses', 'processing', Colors.blue)];
+        return [
+          b('Batalkan', 'cancelled', ask: 'Yakin batalkan pesanan?', msg: 'Pesanan dibatalkan dan stok dikembalikan.', danger: true),
+          b('Proses', 'processing', ask: 'Yakin proses pesanan?', msg: 'Setelah diproses, pesanan tidak bisa dibatalkan lagi.', c: Colors.blue),
+        ];
       case 'processing':
-        return [b('Selesaikan', 'completed', Colors.green)];
+        return [b('Selesaikan', 'completed', ask: 'Yakin tandai selesai?', c: Colors.green)];
       default:
         return [];
     }

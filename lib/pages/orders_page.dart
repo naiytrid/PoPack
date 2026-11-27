@@ -5,6 +5,7 @@ import '../core.dart';
 import '../widgets.dart';
 import 'auth_page.dart';
 import 'home_shell.dart';
+import '../fx.dart';
 
 // ---------------------------------------------------------------------
 // Data & helper
@@ -12,7 +13,7 @@ import 'home_shell.dart';
 
 const _select = 'id,status,created_at,cancel_reason,'
     'order_items(qty,price,variant_name,products(name,image_url,product_images(url,position))),'
-    'order_status_log(status,created_at)';
+    'order_status_log(status,note,created_at)';
 
 const _filters = <(String, String)>[
   ('all', 'Semua'),
@@ -66,6 +67,12 @@ String? _imgOf(Map i) {
   return (legacy is String && legacy.isNotEmpty) ? legacy : null;
 }
 
+List<Map<String, dynamic>> _logOf(Map o) {
+  final l = [for (final e in ((o['order_status_log'] as List?) ?? const [])) Map<String, dynamic>.from(e as Map)];
+  l.sort((a, b) => '${a['created_at']}'.compareTo('${b['created_at']}'));
+  return l;
+}
+
 IconData _icon(String s) => switch (s) {
       'pending' => Icons.hourglass_top_rounded,
       'approved' => Icons.assignment_turned_in_outlined,
@@ -77,7 +84,7 @@ IconData _icon(String s) => switch (s) {
     };
 
 const _hint = {
-  'pending': 'Menunggu pesanan Anda ditinjau. Pesanan masih bisa dibatalkan.',
+  'pending': 'Menunggu pesanan Anda ditinjau. Pembatalan perlu persetujuan admin.',
   'approved': 'Pesanan sudah disetujui. Pembatalan perlu persetujuan admin.',
   'processing': 'Pesanan sedang diproses dan tidak bisa dibatalkan.',
   'completed': 'Pesanan sudah selesai.',
@@ -94,6 +101,7 @@ const _stepLabel = {
   'cancel_requested': 'Pembatalan diajukan',
   'cancelled': 'Pesanan dibatalkan',
   'rejected': 'Pesanan ditolak',
+  'cancel_rejected': 'Pembatalan ditolak admin',
 };
 
 // ---------------------------------------------------------------------
@@ -121,9 +129,17 @@ Future<String?> askCancelReason(BuildContext context, {required bool direct}) =>
 
 /// Pesanan Diajukan -> langsung batal. Pesanan Dipesan -> diajukan ke admin.
 Future<bool> cancelOrder(BuildContext context, Map o) async {
-  final direct = o['status'] == 'pending';
+  const direct = false;
   final reason = await askCancelReason(context, direct: direct);
   if (reason == null || !context.mounted) return false;
+  final ok = await confirmAction(
+    context,
+    title: direct ? 'Yakin batalkan pesanan?' : 'Yakin ajukan pembatalan?',
+    message: direct ? 'Pesanan langsung dibatalkan dan stok dikembalikan.' : 'Pengajuan dikirim ke admin untuk disetujui.',
+    confirmText: direct ? 'Ya, batalkan' : 'Ya, ajukan',
+    danger: true,
+  );
+  if (!ok || !context.mounted) return false;
   try {
     await sb.rpc('request_cancel', params: {'oid': o['id'], 'reason': reason});
     if (context.mounted) toast(context, direct ? 'Pesanan dibatalkan' : 'Pengajuan batal dikirim, menunggu persetujuan admin');
@@ -498,7 +514,7 @@ class _OrderTile extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 if (_canCancel(s))
-                  TextButton(onPressed: onCancel, child: Text(s == 'pending' ? 'Batalkan' : 'Ajukan Batal', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700))),
+                  TextButton(onPressed: onCancel, child: const Text('Ajukan Batal', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700))),
                 TextButton(onPressed: onOpen, child: const Text('Lihat Detail', style: TextStyle(color: brand, fontWeight: FontWeight.w700))),
               ]),
             ),
@@ -611,7 +627,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
   Widget _step(Map e, {required bool last}) {
     final s = '${e['status']}';
-    final c = last ? statusColor(s) : muted;
+    final c = last ? (s == 'cancel_rejected' ? const Color(0xFFEA580C) : statusColor(s)) : muted;
+    final note = '${e['note'] ?? ''}';
     return IntrinsicHeight(
       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SizedBox(
@@ -627,6 +644,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             padding: EdgeInsets.only(bottom: last ? 0 : 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_stepLabel[s] ?? s, style: TextStyle(fontWeight: last ? FontWeight.w800 : FontWeight.w600, color: last ? ink : muted, fontSize: 13.5)),
+              if (note.isNotEmpty)
+                Padding(padding: const EdgeInsets.only(top: 2), child: Text('Alasan: $note', style: const TextStyle(color: muted, fontSize: 12.5, height: 1.35))),
               Text(_fmt(e['created_at']), style: const TextStyle(color: muted, fontSize: 12)),
             ]),
           ),
@@ -636,10 +655,29 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   Widget _timeline(Map o) {
-    var log = [for (final e in ((o['order_status_log'] as List?) ?? const [])) Map<String, dynamic>.from(e as Map)];
-    log.sort((a, b) => '${a['created_at']}'.compareTo('${b['created_at']}'));
+    var log = _logOf(o);
     if (log.isEmpty) log = [{'status': o['status'], 'created_at': o['created_at']}];
     return _card('Riwayat status', Column(children: [for (var k = 0; k < log.length; k++) _step(log[k], last: k == log.length - 1)]));
+  }
+
+  Widget _rejectedNote(Map o) {
+    final log = _logOf(o);
+    if (log.isEmpty || log.last['status'] != 'cancel_rejected') return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0x1AEA580C), borderRadius: BorderRadius.circular(14)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.info_outline, color: Color(0xFFEA580C), size: 22),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Pengajuan pembatalan Anda ditolak admin. Pesanan tetap berjalan dengan status ${statusLabel['${o['status']}'] ?? ''}.',
+            style: const TextStyle(fontSize: 13, height: 1.4),
+          ),
+        ),
+      ]),
+    );
   }
 
   @override
@@ -660,6 +698,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           constraints: const BoxConstraints(maxWidth: 640),
                           child: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
                             _banner(o),
+                            _rejectedNote(o),     // <-- tambah baris ini
                             if ('${o['cancel_reason'] ?? ''}'.isNotEmpty && (status == 'cancel_requested' || status == 'cancelled'))
                               _card('Alasan pembatalan', Text('${o['cancel_reason']}', style: const TextStyle(height: 1.4, fontSize: 13.5))),
                             _items(o),
@@ -683,7 +722,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           await cancelOrder(context, o!);
                           _reload();
                         },
-                        child: Text(status == 'pending' ? 'Batalkan Pesanan' : 'Ajukan Pembatalan', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        child: const Text('Ajukan Pembatalan', style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   )

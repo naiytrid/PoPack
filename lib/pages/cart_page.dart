@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core.dart';
 import 'auth_page.dart';
 import 'home_shell.dart';
+import '../fx.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -15,6 +16,13 @@ class _CartPageState extends State<CartPage> {
   bool busy = false;
 
   Future<void> send() async {
+    final ok = await confirmAction(
+      context,
+      title: 'Yakin kirim pesanan?',
+      message: 'Stok langsung dikurangi untuk pesanan ini. Pesanan masih bisa dibatalkan sebelum diproses.',
+      confirmText: 'Kirim',
+    );
+    if (!ok || !mounted) return;
     setState(() => busy = true);
     try {
       await sb.rpc('place_order', params: {

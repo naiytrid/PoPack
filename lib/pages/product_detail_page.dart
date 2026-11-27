@@ -18,21 +18,36 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   int vi = 0, page = 0, qty = 0;
   final pc = PageController();
   final qc = TextEditingController();
-  final imgKey = GlobalKey();   
+  final imgKey = GlobalKey();
 
-  Product get p => widget.p;
+  late Product _p = widget.p;                 // <-- baru: salinan produk yang bisa diperbarui
+  Product get p => _p;                        // <-- diubah dari widget.p
   Variant get v => p.variants[vi];
   int get step => Cart.stepOf(v);
   bool get canBuy => p.ready && (p.stock == null || p.stock! >= v.minOrder);
+
+  // ===== baru: ambil data produk terbaru saat database berubah =====
+  Future<void> _onSync() async {
+    final n = await fetchProduct(widget.p.id);
+    if (!mounted || n == null) return;
+    setState(() {
+      _p = n;
+      if (vi >= n.variants.length) vi = 0;
+      _setQty(qty, rebuild: false); // sesuaikan jumlah dengan stok terbaru
+    });
+  }
+  // =================================================================
 
   @override
   void initState() {
     super.initState();
     _setQty(v.minOrder, rebuild: false);
+    sync.addListener(_onSync);                // <-- baru
   }
 
   @override
   void dispose() {
+    sync.removeListener(_onSync);             // <-- baru
     pc.dispose();
     qc.dispose();
     super.dispose();

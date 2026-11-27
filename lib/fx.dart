@@ -390,3 +390,40 @@ Future<bool> confirmExit(BuildContext context) async {
   );
   return r == true;
 }
+
+Future<bool> confirmAction(
+  BuildContext context, {
+  required String title,
+  String? message,
+  String confirmText = 'Ya, lanjutkan',
+  bool danger = false,
+}) async {
+  final color = danger ? Colors.red : brand;
+  final r = await showGeneralDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Tutup',
+    barrierColor: Colors.black54,
+    transitionDuration: const Duration(milliseconds: 260),
+    transitionBuilder: (_, a, __, child) {
+      final c = CurvedAnimation(parent: a, curve: Curves.easeOutBack, reverseCurve: Curves.easeIn);
+      return FadeTransition(opacity: a, child: ScaleTransition(scale: Tween<double>(begin: 0.88, end: 1).animate(c), child: child));
+    },
+    pageBuilder: (c, _, __) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      icon: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: color.withAlpha(28), shape: BoxShape.circle),
+        child: Icon(danger ? Icons.warning_amber_rounded : Icons.help_outline, color: color, size: 30),
+      ),
+      title: Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+      content: message == null ? null : Text(message, textAlign: TextAlign.center, style: const TextStyle(color: muted, height: 1.4)),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+        FilledButton(style: FilledButton.styleFrom(backgroundColor: color), onPressed: () => Navigator.pop(c, true), child: Text(confirmText)),
+      ],
+    ),
+  );
+  return r == true;
+}
