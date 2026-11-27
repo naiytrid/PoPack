@@ -29,28 +29,8 @@ class _AccountPageState extends State<AccountPage> {
     super.dispose();
   }
 
-  Future<(Map<String, dynamic>?, List)> _load() async {
-    final p = await myProfile();
-    // Admin tidak berbelanja, jadi tidak perlu memuat pesanan pribadi
-    final List o = p?['role'] == 'admin'
-        ? []
-        : await sb
-            .from('orders')
-            .select('id,status,created_at,order_items(qty,price,variant_name,products(name))')
-            .eq('user_id', sb.auth.currentUser!.id)
-            .order('created_at', ascending: false);
-    return (p, o);
-  }
-
-  Future<void> _cancel(String id) async {
-    try {
-      await sb.rpc('request_cancel', params: {'oid': id});
-      if (mounted) toast(context, 'Pengajuan batal dikirim, menunggu persetujuan admin');
-    } on PostgrestException catch (e) {
-      if (mounted) toast(context, e.message);
-    }
-    if (mounted) setState(() {});
-  }
+  // Pesanan sekarang ada di tab Riwayat, jadi di sini hanya memuat profil
+  Future<Map<String, dynamic>?> _load() => myProfile();
 
   Future<void> _edit(Map<String, dynamic>? p, bool isAdmin) async {
     final ok = await Navigator.push<bool>(
@@ -85,12 +65,12 @@ class _AccountPageState extends State<AccountPage> {
     }
     return Scaffold(
       appBar: AppBar(title: const Text('Akun'), centerTitle: false, automaticallyImplyLeading: false),
-      body: FutureBuilder(
+      body: FutureBuilder<Map<String, dynamic>?>(
         future: _load(),
         builder: (_, s) {
           if (s.hasError) return Center(child: Text('Gagal memuat: ${s.error}'));
-          if (!s.hasData) return const Center(child: CircularProgressIndicator());
-          final (p, orders) = s.data!;
+          if (s.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
+          final p = s.data;
           final isAdmin = p?['role'] == 'admin';
           final nama = _s(p?['full_name']);
           final email = sb.auth.currentUser!.email ?? '';
@@ -161,19 +141,7 @@ class _AccountPageState extends State<AccountPage> {
                         for (var k = 0; k < rows.length; k++) ...[if (k > 0) const Divider(height: 1, color: line), rows[k]],
                       ]),
                     ),
-                  // Pesanan (khusus pelanggan)
-                  if (!isAdmin) ...[
-                    Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 6),
-                        child: Text('Pesanan Saya (${orders.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
-                    if (orders.isEmpty)
-                      const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Belum ada pesanan', style: TextStyle(color: muted)))),
-                    for (final o in orders)
-                      OrderCard(o: o, actions: [
-                        if (o['status'] == 'pending' || o['status'] == 'approved')
-                          TextButton(onPressed: () => _cancel(o['id']), child: const Text('Ajukan Batal', style: TextStyle(color: Colors.red))),
-                      ]),
-                  ],
+                  // Tombol keluar
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                     child: OutlinedButton.icon(

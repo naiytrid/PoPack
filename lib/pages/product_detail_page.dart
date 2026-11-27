@@ -59,7 +59,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       HomeShell.tab.value = 2;
     } else {
       flyToCart(imgKey.currentContext ?? context, imageUrl: p.image);
-      toast(context, '${nf(qty)} pcs ditambahkan ke keranjang');
+      toast(context, '${p.name}${p.hasVariants ? ' • ${v.name}' : ''} ditambahkan ke keranjang');
     }
   }
 

@@ -49,11 +49,14 @@ class _AdminPageState extends State<AdminPage> {
       case 'users':
         return await sb.from('profiles').select().order('created_at', ascending: false);
       case 'report':
-        return await sb.from('orders').select('created_at,order_items(qty,price,products(name))').eq('status', 'approved');
+        return await sb
+            .from('orders')
+            .select('created_at,order_items(qty,price,products(name))')
+            .inFilter('status', ['approved', 'processing', 'completed']);   // <-- diubah
       default:
         return await sb
             .from('orders')
-            .select('id,status,created_at,profiles(full_name,company),order_items(qty,price,variant_name,products(name))')
+            .select('id,status,created_at,cancel_reason,profiles(full_name,company),order_items(qty,price,variant_name,products(name))')   // <-- tambah cancel_reason
             .order('created_at', ascending: false);
     }
   }
@@ -155,7 +158,9 @@ class _AdminPageState extends State<AdminPage> {
       case 'cancel_requested':
         return [b('Tolak Batal', 'reject_cancel'), b('Setujui Batal', 'cancelled', Colors.red)];
       case 'approved':
-        return [b('Batalkan', 'cancelled', Colors.red)];
+        return [b('Batalkan', 'cancelled', Colors.red), b('Proses', 'processing', Colors.blue)];
+      case 'processing':
+        return [b('Selesaikan', 'completed', Colors.green)];
       default:
         return [];
     }
@@ -165,8 +170,10 @@ class _AdminPageState extends State<AdminPage> {
         'Cari nama / perusahaan',
         const [
           ('all', 'Semua'),
-          ('pending', 'Menunggu'),
-          ('approved', 'Diterima'),
+          ('pending', 'Diajukan'),
+          ('approved', 'Dipesan'),
+          ('processing', 'Diproses'),
+          ('completed', 'Selesai'),
           ('cancel_requested', 'Minta batal'),
           ('cancelled', 'Dibatalkan'),
           ('rejected', 'Ditolak'),

@@ -10,6 +10,7 @@ import 'admin_dashboard.dart';
 import 'admin_page.dart';
 import '../fx.dart';
 import 'package:flutter/services.dart'; 
+import 'orders_page.dart';
 
 class _D {
   final Widget icon, sel;
@@ -30,7 +31,7 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  static const _pages = [HomePage(), ProductPage(), CartPage(), AccountPage()];
+  static const _pages = [HomePage(), ProductPage(), CartPage(), OrdersPage(), AccountPage()];
   bool checked = false, isAdmin = false;
   late final StreamSubscription _sub;
 
@@ -86,6 +87,7 @@ class _HomeShellState extends State<HomeShell> {
         _d(Icons.home_outlined, Icons.home, 'Beranda'),
         _d(Icons.grid_view_outlined, Icons.grid_view_rounded, 'Produk'),
         _D(_cartIcon(false), _cartIcon(true), 'Keranjang'),
+        _d(Icons.receipt_long_outlined, Icons.receipt_long, 'Riwayat'),
         _d(Icons.person_outline, Icons.person, 'Akun'),
       ];
 

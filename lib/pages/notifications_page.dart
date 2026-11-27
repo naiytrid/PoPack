@@ -25,6 +25,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
         'order_new' => (Icons.receipt_long_outlined, navy),
         'cancel_request' => (Icons.undo_rounded, const Color(0xFFEA580C)),
         'approved' => (Icons.check_circle_outline, const Color(0xFF16A34A)),
+        'processing' => (Icons.autorenew_rounded, const Color(0xFF7C3AED)),
+        'completed' => (Icons.verified_outlined, const Color(0xFF16A34A)),
         'rejected' => (Icons.block_outlined, const Color(0xFFDC2626)),
         'cancelled' => (Icons.cancel_outlined, const Color(0xFFDC2626)),
         'cancel_rejected' => (Icons.info_outline, const Color(0xFFF59E0B)),

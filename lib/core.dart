@@ -38,15 +38,19 @@ String nf(num n) {
 String rp(num n) => 'IDR ${nf(n)}';
 
 const statusLabel = {
-  'pending': 'Menunggu persetujuan',
-  'approved': 'Pesanan diterima',
+  'pending': 'Diajukan',
+  'approved': 'Dipesan',
+  'processing': 'Diproses',
+  'completed': 'Selesai',
   'cancel_requested': 'Menunggu persetujuan batal',
   'cancelled': 'Dibatalkan',
   'rejected': 'Ditolak',
 };
 Color statusColor(String s) => switch (s) {
-      'approved' => const Color(0xFF16A34A),
       'pending' => const Color(0xFFF59E0B),
+      'approved' => const Color(0xFF2563EB),
+      'processing' => const Color(0xFF7C3AED),
+      'completed' => const Color(0xFF16A34A),
       'cancel_requested' => const Color(0xFFEA580C),
       _ => const Color(0xFFDC2626),
     };

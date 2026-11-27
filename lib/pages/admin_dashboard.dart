@@ -148,10 +148,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             if (s.hasError) return Center(child: Text('${s.error}'));
             if (!s.hasData) return const Center(child: CircularProgressIndicator());
             final orders = s.data!['orders']!, prods = s.data!['products']!, users = s.data!['users']!;
-            final todo = orders.where((o) => o['status'] == 'pending' || o['status'] == 'cancel_requested').length;
+            final todo = orders.where((o) => const ['pending', 'approved', 'cancel_requested'].contains(o['status'])).length;
             num revenue = 0;
             for (final o in orders) {
-              if (o['status'] == 'approved') revenue += _total(o);
+              if (const ['approved', 'processing', 'completed'].contains(o['status'])) revenue += _total(o);
             }
             final active = prods.where((p) => p['is_active'] == true).length;
             final customers = users.where((u) => u['role'] != 'admin').length;

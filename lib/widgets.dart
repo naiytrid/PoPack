@@ -236,7 +236,7 @@ class ProductCard extends StatelessWidget {
     cart.add(p, v);
     if (!c.mounted) return;
     flyToCart(c, imageUrl: p.image); // bola terbang ke keranjang
-    toast(c, '${nf(v.minOrder)} pcs ditambahkan ke keranjang');
+    toast(c, '${p.name} ditambahkan ke keranjang');
   }
 
   @override
@@ -336,6 +336,8 @@ class StatusPill extends StatelessWidget {
 IconData _statusIcon(String s) => switch (s) {
       'approved' => Icons.check_circle_outline,
       'pending' => Icons.hourglass_top_rounded,
+      'processing' => Icons.autorenew_rounded,   
+      'completed' => Icons.verified_outlined,   
       'cancel_requested' => Icons.undo_rounded,
       'cancelled' => Icons.cancel_outlined,
       _ => Icons.block_outlined,
@@ -403,6 +405,13 @@ class OrderCard extends StatelessWidget {
               ),
             ]),
           ),
+        // ===== blok baru: alasan pembatalan =====
+        if ('${o['cancel_reason'] ?? ''}'.isNotEmpty && (s == 'cancel_requested' || s == 'cancelled'))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+            child: Text('Alasan: ${o['cancel_reason']}', style: const TextStyle(color: muted, fontSize: 12.5, height: 1.35)),
+          ),
+        // ========================================
         const Divider(height: 1, color: line),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
